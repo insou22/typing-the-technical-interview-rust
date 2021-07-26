@@ -1,4 +1,6 @@
+#![allow(unused)]
 use std::marker::PhantomData;
+use std::any::Any;
 
 
 ////////// Reify //////////
@@ -371,6 +373,64 @@ where
 }
  
 
+////////// MapCat //////////
+
+trait MapCat {
+    type Output: List;
+}
+
+impl<F, L> MapCat for (F, L)
+where
+    (F, L): Map,
+    <(F, L) as Map>::Output: ListConcatAll,
+{
+    type Output = <<(F, L) as Map>::Output as ListConcatAll>::Output;
+}
+
+
+////////// AppendIf //////////
+
+trait AppendIf {
+    type Output: List;
+}
+
+impl<X, Ys> AppendIf for (True, X, Ys)
+where
+    X: Reify,
+    Ys: List,
+{
+    type Output = Cons<X, Ys>;
+}
+
+impl<X, Ys> AppendIf for (False, X, Ys)
+where
+    Ys: List,
+{
+    type Output = Ys;
+}
+
+
+////////// Filter //////////
+
+trait Filter {
+    type Output: List;
+}
+
+impl<F> Filter for (F, Nil) {
+    type Output = Nil;
+}
+
+impl<F, X, Xs, FilterOutput> Filter for (F, Cons<X, Xs>)
+where
+    F: Apply<X>,
+    X: Reify,
+    Xs: List,
+    (F, Xs): Filter<Output = FilterOutput>,
+    (<F as Apply<X>>::Output, X, FilterOutput): AppendIf,
+{
+    type Output = <(<F as Apply<X>>::Output, X, <(F, Xs) as Filter>::Output) as AppendIf>::Output;
+}
+
 
 
 ////////// Testing //////////
@@ -403,7 +463,25 @@ impl Apply<Z> for Sub1 {
     type Output = Z;
 }
 
-type Sub3From5 = <Sub1 as Apply<<Sub1 as Apply<N5>>::Output>>::Output;
+type Sub2From5 = <Sub1 as Apply<<Sub1 as Apply<N5>>::Output>>::Output;
+
+
+type IsEvenFiltered = <(IsEven, Cons<N0, Cons<N1, Cons<N2, Cons<N3, Cons<N4, Cons<N5, Nil>>>>>>) as Filter>::Output;
+
+struct IsEven;
+impl Apply<N0> for IsEven {
+    type Output = True;
+}
+impl Apply<N1> for IsEven {
+    type Output = False;
+}
+impl<N> Apply<S<S<N>>> for IsEven
+where
+    N: Nat,
+    IsEven: Apply<N>,
+{
+    type Output = <IsEven as Apply<N>>::Output;
+}
 
 fn main() {
     println!("are any true? {:?}", AreAnyTrue::reify());
@@ -431,7 +509,7 @@ fn main() {
     println!("range 8 -> 0: {:?}", Range8::reify());
     // prints "7, 6, 5, 4, 3, 2, 1, 0, nil"
 
-    println!("5 - 2 = {:?}", Sub3From5::reify());
+    println!("5 - 2 = {:?}", Sub2From5::reify());
     // prints "3"
 
     println!("[1, 2, 3].map(|x| x - 1) = {:?}",
@@ -440,5 +518,8 @@ fn main() {
                  Cons<N1, Cons<N2, Cons<N3, Nil>>>
               ) as Map>::Output::reify());
     // prints "0, 1, 2, nil"
+    
+    println!("{:?}", IsEvenFiltered::reify());
+    // prints "0, 2, 4, nil"
 }
 
