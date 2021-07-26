@@ -1,3 +1,4 @@
+#![recursion_limit = "1024"]
 #![allow(unused)]
 use std::marker::PhantomData;
 use std::any::Any;
@@ -351,6 +352,15 @@ impl<A, O: Reify> Reify for dyn Apply<A, Output = O> {
     }
 }
 
+struct Conj1<L>(PhantomData<L>);
+impl<X, L> Apply<X> for Conj1<L>
+where
+    X: Reify,
+    L: List,
+{
+    type Output = Cons<X, L>;
+}
+
 
 ////////// Map //////////
 
@@ -430,6 +440,197 @@ where
 {
     type Output = <(<F as Apply<X>>::Output, X, <(F, Xs) as Filter>::Output) as AppendIf>::Output;
 }
+
+
+////////// Queen //////////
+
+struct Queen<X: Reify, Y: Reify>(PhantomData<X>, PhantomData<Y>);
+struct Queen1<X: Reify>(PhantomData<X>);
+
+impl<X: Reify, Y: Reify> Reify for Queen<X, Y> {
+    fn reify() -> String {
+        format!("queen[x={},y={}]", X::reify(), Y::reify())
+    }
+}
+
+impl<X, Y> Apply<Y> for Queen1<X>
+where
+    X: Reify,
+    Y: Reify,
+{
+    type Output = Queen<X, Y>;
+}
+
+
+////////// QueensInRow //////////
+
+trait QueensInRow {
+    type Output: List;
+}
+
+impl<N, X> QueensInRow for (N, X)
+where
+    X: Reify,
+    N: Range,
+    (Queen1<X>, <N as Range>::Output): Map,
+{
+    type Output = <(Queen1<X>, <N as Range>::Output) as Map>::Output;
+}
+
+
+////////// Threatens //////////
+
+trait Threatens {
+    type Output: Bool;
+}
+
+impl<Ax, Ay, Bx, By> Threatens for (Queen<Ax, Ay>, Queen<Bx, By>)
+where
+    Ax: Reify,
+    Ay: Reify,
+    Bx: Reify,
+    By: Reify,
+    (Ax, Bx): PeanoEqual,
+    (Ay, By): PeanoEqual,
+    (Ax, Bx): PeanoAbsDiff,
+    (Ay, By): PeanoAbsDiff,
+    (<(Ax, Bx) as PeanoEqual>::Output,   <(Ay, By) as PeanoEqual  >::Output): Or,
+    (<(Ax, Bx) as PeanoAbsDiff>::Output, <(Ay, By) as PeanoAbsDiff>::Output): PeanoEqual,
+    (<(<(Ax, Bx) as PeanoEqual>::Output, <(Ay, By) as PeanoEqual  >::Output) as Or>::Output, <(<(Ax, Bx) as PeanoAbsDiff>::Output, <(Ay, By) as PeanoAbsDiff>::Output) as PeanoEqual>::Output): Or,
+{
+    type Output = <
+        (
+            <(
+                <(Ax, Bx) as PeanoEqual>::Output,
+                <(Ay, By) as PeanoEqual>::Output,
+            ) as Or>::Output,
+            <(
+                <(Ax, Bx) as PeanoAbsDiff>::Output,
+                <(Ay, By) as PeanoAbsDiff>::Output,
+            ) as PeanoEqual>::Output,
+        ) as Or>::Output;
+}
+
+struct Threatens1<A>(PhantomData<A>);
+impl<Qa, Qb> Apply<Qb> for Threatens1<Qa>
+where
+    (Qa, Qb): Threatens,
+{
+    type Output = <(Qa, Qb) as Threatens>::Output;
+}
+
+
+////////// Safe //////////
+
+trait Safe {
+    type Output: Bool;
+}
+
+impl<C, Q> Safe for (C, Q)
+where
+    C: List,
+    (  Threatens1<Q>, C): Map,
+    <( Threatens1<Q>, C) as Map>::Output: AnyTrue,
+    <<(Threatens1<Q>, C) as Map>::Output as AnyTrue>::Output: Not,
+{
+    type Output = <<<(Threatens1<Q>, C) as Map>::Output as AnyTrue>::Output as Not>::Output;
+}
+
+struct Safe1<C>(PhantomData<C>);
+impl<C, Q> Apply<Q> for Safe1<C>
+where
+    (C, Q): Safe,
+{
+    type Output = <(C, Q) as Safe>::Output;
+}
+
+
+////////// AddQueen //////////
+
+trait AddQueen {
+    type Output: List;
+}
+
+impl<N, X, C> AddQueen for (N, X, C)
+where
+    (N, X): QueensInRow,
+    (Safe1<C>, <(N, X) as QueensInRow>::Output): Filter,
+    (Conj1<C>, <(Safe1<C>, <(N, X) as QueensInRow>::Output) as Filter>::Output): Map,
+{
+    type Output = <(Conj1<C>, <(Safe1<C>, <(N, X) as QueensInRow>::Output) as Filter>::Output) as Map>::Output;
+}
+
+struct AddQueen2<N, X>(PhantomData<N>, PhantomData<X>);
+impl<N, X, C> Apply<C> for AddQueen2<N, X>
+where
+    (N, X, C): AddQueen,
+{
+    type Output = <(N, X, C) as AddQueen>::Output;
+}
+
+
+trait AddQueenToAll {
+    type Output: List;
+}
+
+impl<N, X, Cs> AddQueenToAll for (N, X, Cs)
+where
+    (AddQueen2<N, X>, Cs): MapCat,
+{
+    type Output = <(AddQueen2<N, X>, Cs) as MapCat>::Output;
+}
+
+
+////////// AddQueensIf //////////
+
+trait AddQueensIf {
+    type Output: List;
+}
+
+impl<N, X, Cs> AddQueensIf for (False, N, X, Cs)
+where
+    Cs: List,
+{
+    type Output = Cs;
+}
+
+impl<N, X, Cs, AddQueenToAllOutput> AddQueensIf for (True, N, X, Cs)
+where
+    X: Nat,
+    (N, X, Cs): AddQueenToAll<Output = AddQueenToAllOutput>,
+    (N, S<X>, AddQueenToAllOutput): AddQueens,
+{
+    type Output = <(N, S<X>, <(N, X, Cs) as AddQueenToAll>::Output) as AddQueens>::Output;
+}
+
+
+trait AddQueens {
+    type Output: List;
+}
+
+impl<N, X, Cs, PeanoLTOutput> AddQueens for (N, X, Cs)
+where
+    (X, N): PeanoLT<Output = PeanoLTOutput>,
+    (PeanoLTOutput, N, X, Cs): AddQueensIf,
+{
+    type Output = <(<(X, N) as PeanoLT>::Output, N, X, Cs) as AddQueensIf>::Output;
+}
+
+
+trait Solution {
+    type Output;
+}
+
+impl<N, AddQueensIfOutput> Solution for N
+where
+    N: Nat,
+    (Z, N): PeanoLT,
+    (<(Z, N) as PeanoLT>::Output, N, Z, Cons<Nil, Nil>): AddQueensIf<Output = AddQueensIfOutput>,
+    AddQueensIfOutput: First,
+{
+    type Output = <<(N, Z, Cons<Nil, Nil>) as AddQueens>::Output as First>::Output;
+}
+
 
 
 
@@ -521,5 +722,7 @@ fn main() {
     
     println!("{:?}", IsEvenFiltered::reify());
     // prints "0, 2, 4, nil"
+    
+    println!("{:?}", std::any::type_name::<<N6 as Solution>::Output>().replace("ttti_rs::", ""));
 }
 
