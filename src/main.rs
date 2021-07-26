@@ -1,61 +1,27 @@
-#![recursion_limit = "1024"]
-#![allow(unused)]
+#![recursion_limit = "1024"] // necessary to generate solutions past N = 6
 use std::marker::PhantomData;
-use std::any::Any;
-
-
-////////// Reify //////////
-
-trait Reify {
-    fn reify() -> String;
-}
-
 
 ////////// List //////////
 
 struct Nil;
 struct Cons<X, Xs: List>(PhantomData<X>, PhantomData<Xs>);
 
-impl Reify for Nil {
-    fn reify() -> String {
-        "nil".to_string()
-    }
-}
-
-impl<X, Xs> Reify for Cons<X, Xs>
-where
-    X:  Reify,
-    Xs: List,
-{
-    fn reify() -> String {
-        format!("{}, {}", X::reify(), Xs::reify())
-    }
-}
-
-trait List: Reify {}
+trait List {}
 impl List for Nil {}
-impl<X, Xs> List for Cons<X, Xs>
-where
-    X:  Reify,
-    Xs: List
-{}
+impl<X, Xs: List> List for Cons<X, Xs> {}
 
 
 ////////// First //////////
 
 trait First {
-    type Output: Reify;
+    type Output;
 }
 
 impl First for Nil {
     type Output = Nil;
 }
 
-impl<X, Xs> First for Cons<X, Xs>
-where
-    X:  Reify,
-    Xs: List,
-{
+impl<X, Xs: List> First for Cons<X, Xs> {
     type Output = X;
 }
 
@@ -72,7 +38,6 @@ impl<L2: List> ListConcat for (Nil, L2) {
 
 impl<X, Xs, L2> ListConcat for (Cons<X, Xs>, L2)
 where
-    X: Reify,
     Xs: List,
     (Xs, L2): ListConcat,
 {
@@ -103,22 +68,9 @@ where
 ////////// Bool //////////
 
 struct False;
-
-impl Reify for False {
-    fn reify() -> String {
-        "false".to_string()
-    }
-}
-
 struct True;
 
-impl Reify for True {
-    fn reify() -> String {
-        "true".to_string()
-    }
-}
-
-trait Bool: Reify {}
+trait Bool {}
 
 impl Bool for False {}
 impl Bool for True {}
@@ -190,20 +142,7 @@ impl Or for (False, False) {
 ////////// Nats //////////
 
 struct Z;
-
-impl Reify for Z {
-    fn reify() -> String {
-        "0".to_string()
-    }
-}
-
 struct S<N: Nat>(PhantomData<N>);
-
-impl<N: Nat> Reify for S<N> {
-    fn reify() -> String {
-        (N::reify().parse::<u32>().unwrap() + 1).to_string()
-    }
-}
 
 type N0 = Z;
 type N1 = S<N0>;
@@ -212,10 +151,8 @@ type N3 = S<N2>;
 type N4 = S<N3>;
 type N5 = S<N4>;
 type N6 = S<N5>;
-type N7 = S<N6>;
-type N8 = S<N7>;
 
-trait Nat: Reify {}
+trait Nat {}
 impl Nat for Z {}
 impl<N: Nat> Nat for S<N> {}
 
@@ -264,17 +201,11 @@ impl PeanoLT for (Z, Z) {
     type Output = False;
 }
 
-impl<N> PeanoLT for (S<N>, Z)
-where
-    N: Nat,
-{
+impl<N: Nat> PeanoLT for (S<N>, Z) {
     type Output = False;
 }
 
-impl<N> PeanoLT for (Z, S<N>)
-where
-    N: Nat,
-{
+impl<N: Nat> PeanoLT for (Z, S<N>) {
     type Output = True;
 }
 
@@ -298,17 +229,11 @@ impl PeanoAbsDiff for (Z, Z) {
     type Output = Z;
 }
 
-impl<N> PeanoAbsDiff for (Z, S<N>)
-where
-    N: Nat,
-{
+impl<N: Nat> PeanoAbsDiff for (Z, S<N>) {
     type Output = S<N>;
 }
 
-impl<N> PeanoAbsDiff for (S<N>, Z)
-where
-    N: Nat,
-{
+impl<N: Nat> PeanoAbsDiff for (S<N>, Z) {
     type Output = S<N>;
 }
 
@@ -343,21 +268,12 @@ where
 ////////// Higher order functions //////////
 
 trait Apply<A> {
-    type Output: Reify;
-}
-
-impl<A, O: Reify> Reify for dyn Apply<A, Output = O> {
-    fn reify() -> String {
-        <Self as Apply<A>>::Output::reify()
-    }
+    type Output;
 }
 
 struct Conj1<L>(PhantomData<L>);
-impl<X, L> Apply<X> for Conj1<L>
-where
-    X: Reify,
-    L: List,
-{
+
+impl<X, L: List> Apply<X> for Conj1<L> {
     type Output = Cons<X, L>;
 }
 
@@ -375,7 +291,6 @@ impl<F> Map for (F, Nil) {
 impl<F, X, Xs> Map for (F, Cons<X, Xs>)
 where
     F:  Apply<X>,
-    X:  Reify,
     Xs: List,
     (F, Xs): Map,
 {
@@ -404,18 +319,11 @@ trait AppendIf {
     type Output: List;
 }
 
-impl<X, Ys> AppendIf for (True, X, Ys)
-where
-    X: Reify,
-    Ys: List,
-{
+impl<X, Ys: List> AppendIf for (True, X, Ys) {
     type Output = Cons<X, Ys>;
 }
 
-impl<X, Ys> AppendIf for (False, X, Ys)
-where
-    Ys: List,
-{
+impl<X, Ys: List> AppendIf for (False, X, Ys) {
     type Output = Ys;
 }
 
@@ -433,7 +341,6 @@ impl<F> Filter for (F, Nil) {
 impl<F, X, Xs, FilterOutput> Filter for (F, Cons<X, Xs>)
 where
     F: Apply<X>,
-    X: Reify,
     Xs: List,
     (F, Xs): Filter<Output = FilterOutput>,
     (<F as Apply<X>>::Output, X, FilterOutput): AppendIf,
@@ -444,20 +351,10 @@ where
 
 ////////// Queen //////////
 
-struct Queen<X: Reify, Y: Reify>(PhantomData<X>, PhantomData<Y>);
-struct Queen1<X: Reify>(PhantomData<X>);
+struct Queen<X, Y>(PhantomData<X>, PhantomData<Y>);
+struct Queen1<X>(PhantomData<X>);
 
-impl<X: Reify, Y: Reify> Reify for Queen<X, Y> {
-    fn reify() -> String {
-        format!("queen[x={},y={}]", X::reify(), Y::reify())
-    }
-}
-
-impl<X, Y> Apply<Y> for Queen1<X>
-where
-    X: Reify,
-    Y: Reify,
-{
+impl<X: Nat, Y> Apply<Y> for Queen1<X> {
     type Output = Queen<X, Y>;
 }
 
@@ -470,7 +367,6 @@ trait QueensInRow {
 
 impl<N, X> QueensInRow for (N, X)
 where
-    X: Reify,
     N: Range,
     (Queen1<X>, <N as Range>::Output): Map,
 {
@@ -486,10 +382,6 @@ trait Threatens {
 
 impl<Ax, Ay, Bx, By> Threatens for (Queen<Ax, Ay>, Queen<Bx, By>)
 where
-    Ax: Reify,
-    Ay: Reify,
-    Bx: Reify,
-    By: Reify,
     (Ax, Bx): PeanoEqual,
     (Ay, By): PeanoEqual,
     (Ax, Bx): PeanoAbsDiff,
@@ -587,10 +479,7 @@ trait AddQueensIf {
     type Output: List;
 }
 
-impl<N, X, Cs> AddQueensIf for (False, N, X, Cs)
-where
-    Cs: List,
-{
+impl<N, X, Cs: List> AddQueensIf for (False, N, X, Cs) {
     type Output = Cs;
 }
 
@@ -617,6 +506,8 @@ where
 }
 
 
+////////// Solution //////////
+
 trait Solution {
     type Output;
 }
@@ -632,97 +523,9 @@ where
 }
 
 
-
-
-////////// Testing //////////
-
-type AreAnyTrue = <Cons<False, Cons<False, Cons<True, Cons<False, Nil>>>> as AnyTrue>::Output;
-type ButNotThis = <Cons<False, Cons<False, Cons<False, Cons<False, Nil>>>> as AnyTrue>::Output;
-
-type Insanity = <
-        Cons<
-            Cons<N0, Cons<N1, Cons<N2, Nil>>>,
-            Cons<
-                Cons<N3, Cons<N4, Cons<N5, Nil>>>,
-                Cons<
-                    Cons<N6, Cons<N7, Cons<N8, Nil>>>,
-                    Nil,
-                >
-            >
-        >
-    as ListConcatAll>::Output;
-
-type Range8 = <N8 as Range>::Output;
-
-
-struct Sub1;
-impl<N: Nat> Apply<S<N>> for Sub1 {
-    type Output = N;
-}
-
-impl Apply<Z> for Sub1 {
-    type Output = Z;
-}
-
-type Sub2From5 = <Sub1 as Apply<<Sub1 as Apply<N5>>::Output>>::Output;
-
-
-type IsEvenFiltered = <(IsEven, Cons<N0, Cons<N1, Cons<N2, Cons<N3, Cons<N4, Cons<N5, Nil>>>>>>) as Filter>::Output;
-
-struct IsEven;
-impl Apply<N0> for IsEven {
-    type Output = True;
-}
-impl Apply<N1> for IsEven {
-    type Output = False;
-}
-impl<N> Apply<S<S<N>>> for IsEven
-where
-    N: Nat,
-    IsEven: Apply<N>,
-{
-    type Output = <IsEven as Apply<N>>::Output;
-}
+////////// Reify //////////
 
 fn main() {
-    println!("are any true? {:?}", AreAnyTrue::reify());
-    // prints "true"
-
-    println!("but not this? {:?}", ButNotThis::reify());
-    // prints "false"
-
-    println!("nil:      {:?}", Nil::reify());
-    // prints "nil"
-
-    println!("1-elem:   {:?}", Cons::<True, Nil>::reify());
-    // prints "true, nil"
-
-    println!("list:     {:?}",
-             <(
-                Cons<N0, Cons<N1, Cons<N2, Nil>>>,
-                Cons<N3, Cons<N4, Cons<N5, Nil>>>
-              ) as ListConcat>::Output::reify());
-    // prints "0, 1, 2, 3, 4, 5"
-
-    println!("insanity: {:?}", Insanity::reify());
-    // prints "0, 1, 2, 3, 4, 5, 6, 7, 8, nil"
-
-    println!("range 8 -> 0: {:?}", Range8::reify());
-    // prints "7, 6, 5, 4, 3, 2, 1, 0, nil"
-
-    println!("5 - 2 = {:?}", Sub2From5::reify());
-    // prints "3"
-
-    println!("[1, 2, 3].map(|x| x - 1) = {:?}",
-             <(
-                 Sub1,
-                 Cons<N1, Cons<N2, Cons<N3, Nil>>>
-              ) as Map>::Output::reify());
-    // prints "0, 1, 2, nil"
-    
-    println!("{:?}", IsEvenFiltered::reify());
-    // prints "0, 2, 4, nil"
-    
-    println!("{:?}", std::any::type_name::<<N6 as Solution>::Output>().replace("ttti_rs::", ""));
+    println!("{}", std::any::type_name::< <N6 as Solution>::Output >().replace("ttti_rs::", ""));
 }
 
