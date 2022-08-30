@@ -4,11 +4,7 @@ use std::marker::PhantomData;
 ////////// List //////////
 
 struct Nil;
-struct Cons<X, Xs: List>(PhantomData<X>, PhantomData<Xs>);
-
-trait List {}
-impl List for Nil {}
-impl<X, Xs: List> List for Cons<X, Xs> {}
+struct Cons<X, Xs>(PhantomData<X>, PhantomData<Xs>);
 
 
 ////////// First //////////
@@ -21,7 +17,7 @@ impl First for Nil {
     type Output = Nil;
 }
 
-impl<X, Xs: List> First for Cons<X, Xs> {
+impl<X, Xs> First for Cons<X, Xs> {
     type Output = X;
 }
 
@@ -29,16 +25,15 @@ impl<X, Xs: List> First for Cons<X, Xs> {
 ////////// ListConcat //////////
 
 trait ListConcat {
-    type Output: List;
+    type Output;
 }
 
-impl<L2: List> ListConcat for (Nil, L2) {
+impl<L2> ListConcat for (Nil, L2) {
     type Output = L2;
 }
 
 impl<X, Xs, L2> ListConcat for (Cons<X, Xs>, L2)
 where
-    Xs: List,
     (Xs, L2): ListConcat,
 {
     type Output = Cons<X, <(Xs, L2) as ListConcat>::Output>;
@@ -48,7 +43,7 @@ where
 ////////// ListConcatAll //////////
 
 trait ListConcatAll {
-    type Output: List;
+    type Output;
 }
 
 impl ListConcatAll for Nil {
@@ -57,8 +52,7 @@ impl ListConcatAll for Nil {
 
 impl<L, Ls> ListConcatAll for Cons<L, Ls>
 where
-    L:  List,
-    Ls: List + ListConcatAll,
+    Ls: ListConcatAll,
     (L, <Ls as ListConcatAll>::Output): ListConcat,
 {
     type Output = <(L, <Ls as ListConcatAll>::Output) as ListConcat>::Output;
@@ -86,16 +80,13 @@ impl AnyTrue for Nil {
     type Output = False;
 }
 
-impl<L> AnyTrue for Cons<True, L>
-where
-    L: List,
-{
+impl<L> AnyTrue for Cons<True, L> {
     type Output = True;
 }
 
 impl<L> AnyTrue for Cons<False, L>
 where
-    L: List + AnyTrue,
+    L: AnyTrue,
 {
     type Output = <L as AnyTrue>::Output;
 }
@@ -250,7 +241,7 @@ where
 ////////// Range //////////
 
 trait Range {
-    type Output: List;
+    type Output;
 }
 
 impl Range for Z {
@@ -273,7 +264,7 @@ trait Apply<A> {
 
 struct Conj1<L>(PhantomData<L>);
 
-impl<X, L: List> Apply<X> for Conj1<L> {
+impl<X, L> Apply<X> for Conj1<L> {
     type Output = Cons<X, L>;
 }
 
@@ -281,7 +272,7 @@ impl<X, L: List> Apply<X> for Conj1<L> {
 ////////// Map //////////
 
 trait Map {
-    type Output: List;
+    type Output;
 }
 
 impl<F> Map for (F, Nil) {
@@ -291,7 +282,6 @@ impl<F> Map for (F, Nil) {
 impl<F, X, Xs> Map for (F, Cons<X, Xs>)
 where
     F:  Apply<X>,
-    Xs: List,
     (F, Xs): Map,
 {
     type Output = Cons<<F as Apply<X>>::Output, <(F, Xs) as Map>::Output>;
@@ -301,7 +291,7 @@ where
 ////////// MapCat //////////
 
 trait MapCat {
-    type Output: List;
+    type Output;
 }
 
 impl<F, L> MapCat for (F, L)
@@ -316,14 +306,14 @@ where
 ////////// AppendIf //////////
 
 trait AppendIf {
-    type Output: List;
+    type Output;
 }
 
-impl<X, Ys: List> AppendIf for (True, X, Ys) {
+impl<X, Ys> AppendIf for (True, X, Ys) {
     type Output = Cons<X, Ys>;
 }
 
-impl<X, Ys: List> AppendIf for (False, X, Ys) {
+impl<X, Ys> AppendIf for (False, X, Ys) {
     type Output = Ys;
 }
 
@@ -331,7 +321,7 @@ impl<X, Ys: List> AppendIf for (False, X, Ys) {
 ////////// Filter //////////
 
 trait Filter {
-    type Output: List;
+    type Output;
 }
 
 impl<F> Filter for (F, Nil) {
@@ -341,7 +331,6 @@ impl<F> Filter for (F, Nil) {
 impl<F, X, Xs, FilterOutput> Filter for (F, Cons<X, Xs>)
 where
     F: Apply<X>,
-    Xs: List,
     (F, Xs): Filter<Output = FilterOutput>,
     (<F as Apply<X>>::Output, X, FilterOutput): AppendIf,
 {
@@ -362,7 +351,7 @@ impl<X: Nat, Y> Apply<Y> for Queen1<X> {
 ////////// QueensInRow //////////
 
 trait QueensInRow {
-    type Output: List;
+    type Output;
 }
 
 impl<N, X> QueensInRow for (N, X)
@@ -420,7 +409,6 @@ trait Safe {
 
 impl<C, Q> Safe for (C, Q)
 where
-    C: List,
     (  Threatens1<Q>, C): Map,
     <( Threatens1<Q>, C) as Map>::Output: AnyTrue,
     <<(Threatens1<Q>, C) as Map>::Output as AnyTrue>::Output: Not,
@@ -440,7 +428,7 @@ where
 ////////// AddQueen //////////
 
 trait AddQueen {
-    type Output: List;
+    type Output;
 }
 
 impl<N, X, C> AddQueen for (N, X, C)
@@ -462,7 +450,7 @@ where
 
 
 trait AddQueenToAll {
-    type Output: List;
+    type Output;
 }
 
 impl<N, X, Cs> AddQueenToAll for (N, X, Cs)
@@ -476,10 +464,10 @@ where
 ////////// AddQueensIf //////////
 
 trait AddQueensIf {
-    type Output: List;
+    type Output;
 }
 
-impl<N, X, Cs: List> AddQueensIf for (False, N, X, Cs) {
+impl<N, X, Cs> AddQueensIf for (False, N, X, Cs) {
     type Output = Cs;
 }
 
@@ -494,7 +482,7 @@ where
 
 
 trait AddQueens {
-    type Output: List;
+    type Output;
 }
 
 impl<N, X, Cs, PeanoLTOutput> AddQueens for (N, X, Cs)
@@ -528,4 +516,3 @@ where
 fn main() {
     println!("{}", std::any::type_name::< <N6 as Solution>::Output >().replace("ttti_rs::", ""));
 }
-
