@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 ////////// List //////////
 
 struct Nil;
-struct Cons<X, Xs>(PhantomData<X>, PhantomData<Xs>);
+struct Cons<X, Xs>(PhantomData<(X, Xs)>);
 
 
 ////////// First //////////
@@ -340,7 +340,7 @@ where
 
 ////////// Queen //////////
 
-struct Queen<X, Y>(PhantomData<X>, PhantomData<Y>);
+struct Queen<X, Y>(PhantomData<(X, Y)>);
 struct Queen1<X>(PhantomData<X>);
 
 impl<X: Nat, Y> Apply<Y> for Queen1<X> {
@@ -440,7 +440,7 @@ where
     type Output = <(Conj1<C>, <(Safe1<C>, <(N, X) as QueensInRow>::Output) as Filter>::Output) as Map>::Output;
 }
 
-struct AddQueen2<N, X>(PhantomData<N>, PhantomData<X>);
+struct AddQueen2<N, X>(PhantomData<(N, X)>);
 impl<N, X, C> Apply<C> for AddQueen2<N, X>
 where
     (N, X, C): AddQueen,
